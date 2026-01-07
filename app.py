@@ -9,7 +9,7 @@ import time
 import re
 
 # ---------------------------------------------------------
-# 1. 核心設定 & CSS (全域風格優化)
+# 1. 核心設定 & CSS (按鈕一致化 + 垂直排列 + 顏色定義)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="設備綜合管理系統",
@@ -33,7 +33,6 @@ if 'edit_data' not in st.session_state:
     st.session_state['edit_data'] = None
 if 'scroll_to_top' not in st.session_state:
     st.session_state['scroll_to_top'] = False
-# 搜尋框的內容綁定
 if 'search_input_val' not in st.session_state:
     st.session_state['search_input_val'] = ""
 
@@ -58,13 +57,15 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* 側邊欄樣式優化 */
+    /* === 側邊欄樣式優化：垂直排列，按鈕大小一致 === */
     div[data-testid="stSidebar"] {
-        background-color: #f8f9fa; /* 讓側邊欄稍微有點區隔 */
+        background-color: #f8f9fa;
     }
+    
+    /* 強制按鈕寬度 100%，高度一致，文字靠左 */
     div[data-testid="stSidebar"] button {
-        width: 100%;
-        text-align: left;
+        width: 100% !important;
+        text-align: left !important;
         background-color: white;
         border: 1px solid #E2E8F0;
         margin-bottom: 8px;
@@ -72,24 +73,30 @@ st.markdown("""
         font-weight: bold;
         box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start; /* 文字靠左 */
+        height: 45px; /* 固定高度 */
+        padding-left: 15px;
     }
+    
     div[data-testid="stSidebar"] button:hover {
         background-color: #EDF2F7;
         border-color: #CBD5E0;
         color: #2B6CB0;
-        transform: translateX(2px);
+        transform: translateX(3px); /* 微幅移動特效 */
     }
     
     /* 選單 Label 加粗優化 */
     .sidebar-label {
         font-size: 1rem;
-        font-weight: 900 !important; /* 超級粗 */
+        font-weight: 900 !important;
         color: #1A202C;
         margin-bottom: 5px;
         display: block;
     }
 
-    /* 目錄式按鈕 */
+    /* 目錄式按鈕 (Radio) */
     div.row-widget.stRadio > div[role="radiogroup"] {
         flex-direction: row;
         flex-wrap: wrap;
@@ -152,9 +159,9 @@ st.markdown("""
         background: rgba(128, 128, 128, 0.2);
     }
     
-    /* 保養料件清單樣式 */
+    /* 保養料件清單樣式 (支援顏色) */
     .part-item {
-        padding: 12px;
+        padding: 10px 15px;
         border-bottom: 1px solid #eee;
         display: flex;
         align-items: center;
@@ -167,18 +174,22 @@ st.markdown("""
     .part-icon {
         font-size: 1.2rem; 
         margin-right: 12px;
-        color: #4A5568;
+        width: 24px;
+        text-align: center;
     }
     .part-text {
-        font-size: 1.05rem; 
+        font-size: 1.1rem; 
         font-weight: bold; 
-        color: #2D3748;
     }
+    /* 定義顏色 class */
+    .text-red { color: #E53E3E !important; }
+    .text-green { color: #38A169 !important; }
+    .text-normal { color: #2D3748; }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. 資料處理
+# 2. 資料處理 (定義顏色規則)
 # ---------------------------------------------------------
 HAS_AI = False
 HAS_FUZZY = False
@@ -198,6 +209,52 @@ except ImportError:
 
 REPAIR_COLS = ['設備型號', '大標', '主題(事件簡述)', '原因(異常查找、分析)', '處置、應對', '驗證是否排除(驗證作法)', '備註(建議事項及補充事項)']
 MAINTAIN_COLS = ['保養類型', '型號', '更換料件']
+
+# === 關鍵：定義不同機型/里程的顏色規則 (比對料號前綴或特徵) ===
+# 這裡儲存的是「料號 ID」或「關鍵字」，只要料件名稱包含這些字，就會上色
+COLOR_RULES = {
+    "420單向軸承": {
+        "500K": {
+            "red": ["B2476", "B1556", "T2400", "T2670", "D2487", "D2488", "D2510", "D3611", "D2354", "D2355", "D2356", "D2348", "D2349", "D2602", "D2362"],
+            "green": []
+        },
+        "1M": {
+            "red": ["B2476", "B1556", "T2400", "T2670", "D2487", "D2488", "D2510", "D3611", "D2354", "D2355", "D2356", "D2348", "D2349", "D2602"],
+            "green": ["B1008", "B695", "B992", "B1041", "B1054", "B993", "D3466", "D2642", "D2643", "D2443", "D2674", "D2347", "E2646", "E2647", "D2481", "D2664", "D3496", "D1614", "D3053", "D2449", "D2568", "D2340", "D2567", "D120", "D121"]
+        }
+    },
+    "HGT-421": {
+        "500K": {
+            "red": ["B1556", "B2476", "T2670", "D3089", "D3090", "D3523", "D3524", "D2602", "D3494", "D3462", "D3463", "D2487", "D2488", "D3254"],
+            "green": []
+        },
+        "1M": {
+            "red": ["B1556", "B2476", "T2670", "D3089", "D3090", "D3523", "D3524", "D2602", "D3494", "D3462", "D3463", "D2487", "D2488", "D3254"],
+            "green": ["D3530", "D3529", "B695", "B992", "D3213", "D3176", "D3181", "D2514", "D3496", "D2347", "D2510", "D3166", "D3167", "D2798", "D3215", "D2340", "E2646", "E2647", "D2481", "D2664"]
+        }
+    }
+}
+
+def get_part_color_class(part_name, model, interval):
+    """判斷料件應該顯示什麼顏色"""
+    # 簡單的模糊比對：看料號是否包含在定義的清單中
+    # 先統一將 Interval 轉為大寫並去除 "保養" 二字，例如 "500K保養" -> "500K"
+    clean_interval = interval.replace("保養", "").upper().strip()
+    
+    if model in COLOR_RULES and clean_interval in COLOR_RULES[model]:
+        rules = COLOR_RULES[model][clean_interval]
+        
+        # 檢查紅色清單
+        for key in rules["red"]:
+            if key in part_name:
+                return "text-red", "🔴"
+        
+        # 檢查綠色清單
+        for key in rules["green"]:
+            if key in part_name:
+                return "text-green", "🟢"
+                
+    return "text-normal", "🔩"
 
 def clean_text(text):
     if not isinstance(text, str): return str(text)
@@ -263,7 +320,6 @@ def load_maintain_data():
         sh = client.open_by_url(sheet_url)
         worksheet = sh.get_worksheet(0)
         
-        # 讀取所有資料
         rows = worksheet.get_all_values()
         if not rows: return pd.DataFrame(columns=MAINTAIN_COLS)
         
@@ -271,16 +327,14 @@ def load_maintain_data():
         data = rows[1:]
         df = pd.DataFrame(data, columns=header)
         
-        # 1. 處理合併儲存格 (填補空白)
         df.replace("", float("NaN"), inplace=True)
         df['保養類型'] = df['保養類型'].ffill()
         df['型號'] = df['型號'].ffill()
         
-        # 2. 關鍵：過濾掉沒有「更換料件」的資料列
-        # 這一步會把 251K, 252K 那些空資料刪掉
-        df = df.dropna(subset=['更換料件'])
+        # === 關鍵清洗：統一轉大寫並去除空白，解決 500k/500K 問題 ===
+        df['保養類型'] = df['保養類型'].astype(str).str.upper().str.strip()
         
-        # 3. 補回剩下的空字串 (以防萬一)
+        df = df.dropna(subset=['更換料件'])
         df.fillna("", inplace=True)
         
         return df
@@ -549,22 +603,19 @@ def main():
     
     vectorizer, tfidf_matrix = build_search_engine(df_repair['search_content'])
     
-    # 資料篩選與整理
     all_repair_models = sorted(list(set(df_repair['設備型號'].astype(str).tolist()))) if not df_repair.empty else []
     maintain_intervals = sorted(list(set(df_maintain['保養類型'].astype(str).tolist()))) if not df_maintain.empty else []
 
-    # === 側邊欄設計 ===
+    # === 側邊欄設計 (垂直排列 + 按鈕一致) ===
     with st.sidebar:
         st.header("🎛️ 中控台")
         
-        col_ai, col_dash = st.columns(2)
-        with col_ai:
-            if st.button("🧠 AI 診斷", use_container_width=True): set_view("ai_search")
-        with col_dash:
-            if st.button("📊 戰情室", use_container_width=True): set_view("dashboard")
+        # 垂直排列按鈕
+        if st.button("🧠 AI 診斷"): set_view("ai_search")
+        if st.button("📊 戰情室"): set_view("dashboard")
         
         st.markdown("---")
-        if st.button("➕ 新增維修紀錄", type="primary", use_container_width=True):
+        if st.button("➕ 新增維修紀錄", type="primary"):
             st.session_state['edit_mode'] = True
             st.session_state['edit_data'] = None
             st.session_state['scroll_to_top'] = True 
@@ -576,14 +627,14 @@ def main():
         with st.expander("📂 設備維修目錄", expanded=False):
             st.markdown('<span class="sidebar-label">選擇機型查閱履歷</span>', unsafe_allow_html=True)
             selected_model_dd = st.selectbox(
-                "選擇機型查閱履歷", # 隱藏的 label，用上面自訂的取代
+                "選擇機型查閱履歷",
                 ["請選擇..."] + all_repair_models,
                 index=0,
                 key="sb_repair_model",
                 label_visibility="collapsed"
             )
             if selected_model_dd != "請選擇...":
-                if st.button("🔍 查詢維修履歷", use_container_width=True):
+                if st.button("🔍 查詢維修履歷"):
                     st.session_state['selected_model'] = selected_model_dd
                     st.session_state['target_category'] = "全部顯示"
                     st.session_state['target_topic'] = "全部顯示"
@@ -616,7 +667,7 @@ def main():
             )
             
             if sel_m_model != "請選擇...":
-                if st.button("📋 查看保養料件", use_container_width=True):
+                if st.button("📋 查看保養料件"):
                     st.session_state['selected_maintain_interval'] = sel_interval
                     st.session_state['selected_maintain_model'] = sel_m_model
                     set_view("maintenance_log")
@@ -627,10 +678,8 @@ def main():
     if st.session_state['active_view'] == "ai_search":
         st.markdown('<h1>🧠 設備維修智慧搜尋 <span style="font-size:1rem; color:gray;">(自動遞補最佳建議)</span></h1>', unsafe_allow_html=True)
         
-        # 綁定 Session State 的值，確保切換頁面回來還在
         query = st.text_input("💬 故障描述", placeholder="試試看輸入：馬達異音、皮帶斷裂...", value=st.session_state['search_input_val'])
         
-        # 只要輸入框有值改變，立刻更新 Session State
         if query != st.session_state['search_input_val']:
             st.session_state['search_input_val'] = query
             st.rerun()
@@ -830,7 +879,7 @@ def main():
                     st.markdown("<hr style='margin:0; border:0; border-top:1px solid rgba(128,128,128,0.1);'>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- 4. 保養資料瀏覽 (條列式清單) ---
+    # --- 4. 保養資料瀏覽 (條列式清單 + 顏色顯示) ---
     elif st.session_state['active_view'] == "maintenance_log":
         m_interval = st.session_state['selected_maintain_interval']
         m_model = st.session_state['selected_maintain_model']
@@ -848,16 +897,20 @@ def main():
         else:
             parts_list = df_m_show['更換料件'].tolist()
             
-            # 使用白色卡片 + 條列式設計 (移除外框容器，只留清單)
+            # 使用白色卡片 + 條列式設計
             st.markdown('<div style="background-color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 5px;">', unsafe_allow_html=True)
             for part in parts_list:
                 items = part.split('\n')
                 for item in items:
-                    if item.strip():
+                    item_clean = item.strip()
+                    if item_clean:
+                        # 呼叫上色邏輯
+                        color_class, icon = get_part_color_class(item_clean, m_model, m_interval)
+                        
                         st.markdown(f"""
                         <div class="part-item">
-                            <span class="part-icon">🔩</span>
-                            <span class="part-text">{item}</span>
+                            <span class="part-icon">{icon}</span>
+                            <span class="part-text {color_class}">{item_clean}</span>
                         </div>
                         """, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
