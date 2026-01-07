@@ -9,7 +9,7 @@ import time
 import re
 
 # ---------------------------------------------------------
-# 1. 核心設定 & CSS (滿版 + 高級清晰風 + 側邊欄優化)
+# 1. 核心設定 & CSS (全域風格優化)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="設備綜合管理系統",
@@ -19,7 +19,6 @@ st.set_page_config(
 )
 
 # 初始化 Session State
-# active_view 控制主畫面顯示什麼：'ai_search', 'dashboard', 'repair_log', 'maintenance_log'
 if 'active_view' not in st.session_state:
     st.session_state['active_view'] = "ai_search"
 if 'selected_model' not in st.session_state:
@@ -34,6 +33,9 @@ if 'edit_data' not in st.session_state:
     st.session_state['edit_data'] = None
 if 'scroll_to_top' not in st.session_state:
     st.session_state['scroll_to_top'] = False
+# 搜尋框的內容綁定
+if 'search_input_val' not in st.session_state:
+    st.session_state['search_input_val'] = ""
 
 # CSS 設定
 st.markdown("""
@@ -56,12 +58,66 @@ st.markdown("""
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* 側邊欄按鈕與選單優化 */
-    div[data-testid="stSidebar"] .stSelectbox label {
-        font-size: 1.1rem;
+    /* 側邊欄樣式優化 */
+    div[data-testid="stSidebar"] {
+        background-color: #f8f9fa; /* 讓側邊欄稍微有點區隔 */
+    }
+    div[data-testid="stSidebar"] button {
+        width: 100%;
+        text-align: left;
+        background-color: white;
+        border: 1px solid #E2E8F0;
+        margin-bottom: 8px;
         color: #2D3748;
+        font-weight: bold;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        transition: all 0.2s;
+    }
+    div[data-testid="stSidebar"] button:hover {
+        background-color: #EDF2F7;
+        border-color: #CBD5E0;
+        color: #2B6CB0;
+        transform: translateX(2px);
     }
     
+    /* 選單 Label 加粗優化 */
+    .sidebar-label {
+        font-size: 1rem;
+        font-weight: 900 !important; /* 超級粗 */
+        color: #1A202C;
+        margin-bottom: 5px;
+        display: block;
+    }
+
+    /* 目錄式按鈕 */
+    div.row-widget.stRadio > div[role="radiogroup"] {
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    div.row-widget.stRadio > div[role="radiogroup"] > label {
+        background-color: var(--secondary-background-color);
+        color: var(--text-color);
+        padding: 8px 16px;
+        border-radius: 6px;
+        border: 1px solid #E2E8F0;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.2s;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+    }
+    div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
+        border-color: #4A5568;
+        transform: translateY(-2px);
+    }
+    div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
+        background-color: #2D3748 !important;
+        color: white !important;
+        border-color: #1A202C !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+
     /* 卡片與表格樣式 */
     .topic-container {
         border: 1px solid #E2E8F0;
@@ -95,11 +151,34 @@ st.markdown("""
         margin-left: 10px;
         background: rgba(128, 128, 128, 0.2);
     }
+    
+    /* 保養料件清單樣式 */
+    .part-item {
+        padding: 12px;
+        border-bottom: 1px solid #eee;
+        display: flex;
+        align-items: center;
+        background-color: white;
+        transition: background-color 0.2s;
+    }
+    .part-item:hover {
+        background-color: #f7fafc;
+    }
+    .part-icon {
+        font-size: 1.2rem; 
+        margin-right: 12px;
+        color: #4A5568;
+    }
+    .part-text {
+        font-size: 1.05rem; 
+        font-weight: bold; 
+        color: #2D3748;
+    }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. 資料處理 (維修 & 保養)
+# 2. 資料處理
 # ---------------------------------------------------------
 HAS_AI = False
 HAS_FUZZY = False
@@ -174,17 +253,17 @@ def load_repair_data():
         )
         return df
     except Exception as e:
-        # st.error(f"維修資料載入錯誤: {e}") # 暫時隱藏錯誤以免干擾
         return pd.DataFrame(columns=REPAIR_COLS)
 
-@st.cache_data(ttl=300) # 保養資料變動少，快取久一點
+@st.cache_data(ttl=60)
 def load_maintain_data():
     try:
         client = get_google_sheet_connection()
         sheet_url = st.secrets["sheets"]["maintain_url"]
         sh = client.open_by_url(sheet_url)
         worksheet = sh.get_worksheet(0)
-        # 這裡改用 get_all_values 以便處理合併儲存格
+        
+        # 讀取所有資料
         rows = worksheet.get_all_values()
         if not rows: return pd.DataFrame(columns=MAINTAIN_COLS)
         
@@ -192,12 +271,17 @@ def load_maintain_data():
         data = rows[1:]
         df = pd.DataFrame(data, columns=header)
         
-        # 資料清洗：處理合併儲存格 (空白填補)
-        # 將空字串轉為 NaN，然後向下填充 (ffill)
+        # 1. 處理合併儲存格 (填補空白)
         df.replace("", float("NaN"), inplace=True)
         df['保養類型'] = df['保養類型'].ffill()
         df['型號'] = df['型號'].ffill()
-        df.fillna("", inplace=True) # 剩下的空值補回空字串
+        
+        # 2. 關鍵：過濾掉沒有「更換料件」的資料列
+        # 這一步會把 251K, 252K 那些空資料刪掉
+        df = df.dropna(subset=['更換料件'])
+        
+        # 3. 補回剩下的空字串 (以防萬一)
+        df.fillna("", inplace=True)
         
         return df
     except Exception as e:
@@ -316,7 +400,6 @@ def super_smart_search(query, df, vectorizer, tfidf_matrix):
 # ---------------------------------------------------------
 def set_view(view_name):
     st.session_state['active_view'] = view_name
-    # 切換視圖時清除一些過濾條件，保持清爽
     if view_name != 'repair_log':
         st.session_state['target_case_id'] = None
 
@@ -324,18 +407,14 @@ def jump_to_repair_case(model_name, case_id, category, topic):
     st.session_state['active_view'] = "repair_log"
     st.session_state['selected_model'] = model_name
     st.session_state['target_case_id'] = case_id 
-    # 這裡可以順便設 filter，但為了保持彈性先不鎖死
 
 def render_edit_form(df):
-    # ★ 強制置頂 JS ★
     if st.session_state.get('scroll_to_top'):
         js = """
         <script>
             setTimeout(function() {
                 var section = window.parent.document.querySelector('[data-testid="stAppViewContainer"]');
-                if (section) { 
-                    section.scrollTo({top: 0, behavior: 'smooth'}); 
-                }
+                if (section) { section.scrollTo({top: 0, behavior: 'smooth'}); }
             }, 100); 
         </script>
         """
@@ -355,7 +434,6 @@ def render_edit_form(df):
         with st.expander(form_title, expanded=True):
             default_data = st.session_state['edit_data'] if is_edit else {}
             
-            # --- 設備型號選單 ---
             st.markdown("##### 📍 設備型號")
             curr_model = default_data.get('設備型號', existing_models[0] if existing_models else "")
             
@@ -374,7 +452,6 @@ def render_edit_form(df):
             
             st.write("")
             
-            # --- 大標選單 ---
             st.markdown("##### 🏷️ 分類 (大標)")
             curr_cat = default_data.get('大標', existing_cats[0] if existing_cats else "")
             
@@ -393,7 +470,6 @@ def render_edit_form(df):
 
             st.write("")
 
-            # === 資料表單 ===
             with st.form("data_entry_form"):
                 new_topic = st.text_area("📝 主題 (事件簡述 - 必填)", value=default_data.get('主題(事件簡述)', ""), height=68)
                 
@@ -466,7 +542,6 @@ def render_edit_form(df):
 # 4. 主程式執行
 # ---------------------------------------------------------
 def main():
-    # 載入資料
     df_repair = load_repair_data()
     df_maintain = load_maintain_data()
     
@@ -474,17 +549,14 @@ def main():
     
     vectorizer, tfidf_matrix = build_search_engine(df_repair['search_content'])
     
-    # 取得設備列表 (Repair)
+    # 資料篩選與整理
     all_repair_models = sorted(list(set(df_repair['設備型號'].astype(str).tolist()))) if not df_repair.empty else []
-    
-    # 取得保養列表 (Maintain) - 這裡需要層級：保養類型 -> 型號
     maintain_intervals = sorted(list(set(df_maintain['保養類型'].astype(str).tolist()))) if not df_maintain.empty else []
 
     # === 側邊欄設計 ===
     with st.sidebar:
         st.header("🎛️ 中控台")
         
-        # 功能切換按鈕
         col_ai, col_dash = st.columns(2)
         with col_ai:
             if st.button("🧠 AI 診斷", use_container_width=True): set_view("ai_search")
@@ -500,13 +572,15 @@ def main():
             
         st.divider()
         
-        # === 1. 設備目錄 (下拉選單模式) ===
+        # === 1. 設備目錄 (下拉選單 + 加粗標題) ===
         with st.expander("📂 設備維修目錄", expanded=False):
+            st.markdown('<span class="sidebar-label">選擇機型查閱履歷</span>', unsafe_allow_html=True)
             selected_model_dd = st.selectbox(
-                "選擇機型查閱履歷",
+                "選擇機型查閱履歷", # 隱藏的 label，用上面自訂的取代
                 ["請選擇..."] + all_repair_models,
                 index=0,
-                key="sb_repair_model"
+                key="sb_repair_model",
+                label_visibility="collapsed"
             )
             if selected_model_dd != "請選擇...":
                 if st.button("🔍 查詢維修履歷", use_container_width=True):
@@ -518,25 +592,27 @@ def main():
 
         # === 2. 保養目錄 (階層式下拉選單) ===
         with st.expander("🛠️ 定期保養目錄", expanded=False):
-            # 第一層：選擇里程 (250K, 500K...)
+            st.markdown('<span class="sidebar-label">1. 選擇保養里程</span>', unsafe_allow_html=True)
             sel_interval = st.selectbox(
-                "1. 選擇保養里程",
+                "選擇保養里程",
                 ["請選擇..."] + maintain_intervals,
-                key="sb_maintain_interval"
+                key="sb_maintain_interval",
+                label_visibility="collapsed"
             )
             
-            # 第二層：根據里程篩選機型
             maintain_models = []
             if sel_interval != "請選擇...":
                 maintain_models = sorted(list(set(
                     df_maintain[df_maintain['保養類型'] == sel_interval]['型號'].astype(str).tolist()
                 )))
             
+            st.markdown('<span class="sidebar-label">2. 選擇機型</span>', unsafe_allow_html=True)
             sel_m_model = st.selectbox(
-                "2. 選擇機型",
+                "選擇機型",
                 ["請選擇..."] + maintain_models,
                 key="sb_maintain_model",
-                disabled=(sel_interval == "請選擇...")
+                disabled=(sel_interval == "請選擇..."),
+                label_visibility="collapsed"
             )
             
             if sel_m_model != "請選擇...":
@@ -546,20 +622,18 @@ def main():
                     set_view("maintenance_log")
                     st.rerun()
 
-    # =========================================================
-    # 主畫面路由 (根據 active_view 顯示對應內容)
-    # =========================================================
+    # --- 主畫面路由 ---
 
-    # --- 1. AI 搜尋 ---
     if st.session_state['active_view'] == "ai_search":
         st.markdown('<h1>🧠 設備維修智慧搜尋 <span style="font-size:1rem; color:gray;">(自動遞補最佳建議)</span></h1>', unsafe_allow_html=True)
         
-        # AI 搜尋輸入框 (使用 on_change 解決搜尋兩次問題)
-        def on_search_change():
-            # 這裡不需要做什麼，只要觸發重跑即可，下面的 if query 會抓到最新值
-            pass
-
-        query = st.text_input("💬 故障描述", placeholder="試試看輸入：馬達異音、皮帶斷裂...", key="search_input")
+        # 綁定 Session State 的值，確保切換頁面回來還在
+        query = st.text_input("💬 故障描述", placeholder="試試看輸入：馬達異音、皮帶斷裂...", value=st.session_state['search_input_val'])
+        
+        # 只要輸入框有值改變，立刻更新 Session State
+        if query != st.session_state['search_input_val']:
+            st.session_state['search_input_val'] = query
+            st.rerun()
 
         if query:
             with st.spinner("⚡ AI 深度檢索 & 外部資源比對中..."):
@@ -592,7 +666,6 @@ def main():
                         jump_to_repair_case(row['設備型號'], row['original_id'], row['大標'], row['主題(事件簡述)'])
                         st.rerun()
 
-    # --- 2. 戰情室 ---
     elif st.session_state['active_view'] == "dashboard":
         st.markdown('<h1>📊 全域戰情室</h1>', unsafe_allow_html=True)
         if df_repair.empty:
@@ -668,11 +741,9 @@ def main():
                 )
                 st.plotly_chart(fig_bar, use_container_width=True)
 
-    # --- 3. 維修履歷瀏覽 ---
     elif st.session_state['active_view'] == "repair_log":
         target_model = st.session_state['selected_model']
         target_id = st.session_state['target_case_id']
-        # 讀取篩選狀態
         target_cat = st.session_state.get('target_category', "全部顯示")
         target_topic = st.session_state.get('target_topic', "全部顯示")
         
@@ -684,12 +755,10 @@ def main():
         
         df_model = df_repair[df_repair['設備型號'] == target_model]
         
-        # 分類選擇
         st.markdown("### 1️⃣ 選擇分類")
         all_cats = sorted(list(set(df_model['大標'].tolist())))
         cats_display = ["全部顯示"] + all_cats
         
-        # 保持選項狀態
         idx_cat = cats_display.index(target_cat) if target_cat in cats_display else 0
         sel_cat = st.radio("大標", cats_display, index=idx_cat, horizontal=True, label_visibility="collapsed", key="cat_filter")
         st.session_state['target_category'] = sel_cat
@@ -714,14 +783,12 @@ def main():
         if df_final.empty:
             st.info("此分類下無資料")
         else:
-            # 排序：如果有指定 target_id (從AI搜尋來)，把它排第一個
             if target_id is not None:
-                # 簡單作法：將該筆資料提到最前
                 target_row = df_final[df_final['original_id'] == target_id]
                 other_rows = df_final[df_final['original_id'] != target_id]
                 df_final = pd.concat([target_row, other_rows])
 
-            grouped = df_final.groupby('主題(事件簡述)', sort=False) # sort=False 保持上述排序
+            grouped = df_final.groupby('主題(事件簡述)', sort=False)
             
             for topic_name, group_data in grouped:
                 st.markdown(f"""
@@ -763,7 +830,7 @@ def main():
                     st.markdown("<hr style='margin:0; border:0; border-top:1px solid rgba(128,128,128,0.1);'>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-    # --- 4. 保養資料瀏覽 (全新視圖) ---
+    # --- 4. 保養資料瀏覽 (條列式清單) ---
     elif st.session_state['active_view'] == "maintenance_log":
         m_interval = st.session_state['selected_maintain_interval']
         m_model = st.session_state['selected_maintain_model']
@@ -771,7 +838,6 @@ def main():
         st.markdown(f'<h1>🛠️ 保養料件清單</h1>', unsafe_allow_html=True)
         st.info(f"當前檢視：**{m_interval}** - **{m_model}**")
         
-        # 篩選資料
         df_m_show = df_maintain[
             (df_maintain['保養類型'] == m_interval) & 
             (df_maintain['型號'] == m_model)
@@ -780,25 +846,22 @@ def main():
         if df_m_show.empty:
             st.warning("⚠️ 查無此機型的保養料件資料")
         else:
-            # 整理料件清單 (有些可能是多行，這裡做簡單拆分)
             parts_list = df_m_show['更換料件'].tolist()
             
-            # 使用卡片顯示料件
-            st.markdown("""<div class="topic-container" style="padding: 20px;">""", unsafe_allow_html=True)
+            # 使用白色卡片 + 條列式設計 (移除外框容器，只留清單)
+            st.markdown('<div style="background-color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 5px;">', unsafe_allow_html=True)
             for part in parts_list:
-                # 處理料件字串中的換行
                 items = part.split('\n')
                 for item in items:
                     if item.strip():
                         st.markdown(f"""
-                        <div style="padding: 10px; border-bottom: 1px solid #eee; display: flex; align-items: center;">
-                            <span style="font-size: 1.2rem; margin-right: 10px;">🔩</span>
-                            <span style="font-size: 1.1rem; font-weight: bold; color: #2D3748;">{item}</span>
+                        <div class="part-item">
+                            <span class="part-icon">🔩</span>
+                            <span class="part-text">{item}</span>
                         </div>
                         """, unsafe_allow_html=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
             
-            # 返回按鈕 (雖然側邊欄可以點，但在這裡加一個也方便)
             if st.button("⬅️ 返回中控台"):
                 set_view("ai_search")
                 st.rerun()
