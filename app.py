@@ -9,7 +9,7 @@ import time
 import re
 
 # ---------------------------------------------------------
-# 1. 核心設定 & CSS (滿版 + 高級清晰風 + 側邊欄按鈕修復)
+# 1. 核心設定 & CSS (按鈕回歸 + 滿版 + 高級清晰風)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="服務報告履歷系統",
@@ -56,20 +56,10 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* 隱藏原生多餘選單，但保留側邊欄展開按鈕 */
+    /* === 這裡刪除了隱藏 header 的代碼，確保左上角按鈕一定出現 === */
+    /* 只隱藏頁尾和右上的漢堡選單，保留上方白條 */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    div[data-testid="stToolbar"] {visibility: hidden;}
-    
-    /* 關鍵修復：隱藏 Header 本體，但強制顯示側邊欄控制按鈕 */
-    header {
-        visibility: hidden;
-    }
-    [data-testid="stSidebarCollapsedControl"] {
-        visibility: visible !important;
-        display: block !important;
-        color: var(--text-color) !important;
-    }
 
     /* === 側邊欄按鈕 === */
     div[data-testid="stSidebar"] button {
@@ -426,7 +416,7 @@ def render_edit_form(df):
 
             st.write("")
 
-            # === 2. 靜態資料表單 ===
+            # === 2. 靜態資料表單 (防止Enter誤觸，改用 Text Area) ===
             with st.form("data_entry_form"):
                 new_topic = st.text_area("📝 主題 (事件簡述 - 必填)", value=default_data.get('主題(事件簡述)', ""), height=68)
                 
@@ -535,6 +525,7 @@ def main():
             with st.spinner("⚡ AI 深度檢索 & 外部資源比對中..."):
                 results, summary_html, ext_link = super_smart_search(query, df, vectorizer, tfidf_matrix)
             
+            # 使用 HTML 渲染
             st.markdown(summary_html, unsafe_allow_html=True)
             
             if ext_link:
