@@ -9,7 +9,7 @@ import time
 import re
 
 # ---------------------------------------------------------
-# 1. 核心設定 & CSS (全平台適配 + 深色模式 + 手機優化)
+# 1. 核心設定 & CSS (按鈕一致化 + 垂直排列 + 顏色定義)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="設備綜合管理系統",
@@ -27,10 +27,10 @@ if 'selected_maintain_interval' not in st.session_state:
     st.session_state['selected_maintain_interval'] = None
 if 'selected_maintain_model' not in st.session_state:
     st.session_state['selected_maintain_model'] = None
-if 'selected_inspect_item' not in st.session_state:
+if 'selected_inspect_item' not in st.session_state: # 新增點檢狀態
     st.session_state['selected_inspect_item'] = None
 if 'edit_mode' not in st.session_state:
-    st.session_state['edit_mode'] = False
+    st.session_state['edit_mode'] = False # 雖然現在是用頁面跳轉，但保留此變數判斷是否為「修改」狀態
 if 'edit_data' not in st.session_state:
     st.session_state['edit_data'] = None
 if 'scroll_to_top' not in st.session_state:
@@ -38,201 +38,174 @@ if 'scroll_to_top' not in st.session_state:
 if 'search_input_val' not in st.session_state:
     st.session_state['search_input_val'] = ""
 
-# CSS 設定 (RWD + Dark Mode Support)
+# CSS 設定
 st.markdown("""
 <style>
-    /* === 全域變數與字體 === */
+    /* 全域字體：全部加粗 */
     html, body, [class*="css"] {
         font-family: "Microsoft JhengHei", "Segoe UI", sans-serif;
         font-weight: bold !important;
     }
-
-    /* === 1. 內容區塊滿版化 & 手機適配 === */
+    
+    /* 內容區塊滿版化 */
     .block-container {
-        padding-top: 3.5rem; /* 避開手機頂部狀態列 */
+        padding-top: 2rem;
         padding-bottom: 3rem;
         padding-left: 1rem;
         padding-right: 1rem;
         max-width: 100% !important;
     }
     
-    /* 手機版特別調整 (螢幕寬度小於 768px) */
-    @media (max-width: 768px) {
-        .block-container {
-            padding-top: 2rem;
-            padding-left: 0.5rem;
-            padding-right: 0.5rem;
-        }
-        h1 { font-size: 1.5rem !important; } /* 標題縮小 */
-        h3 { font-size: 1.1rem !important; }
-        .stButton button {
-            width: 100% !important; /* 按鈕全寬 */
-            white-space: normal !important; /* 允許按鈕文字換行 */
-            height: auto !important;
-            padding: 10px !important;
-        }
-    }
-
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 
-    /* === 2. 側邊欄樣式優化 (支援深色模式) === */
+    /* === 側邊欄樣式優化：按鈕統一 === */
     div[data-testid="stSidebar"] {
-        background-color: var(--secondary-background-color); /* 自動適應深淺色 */
+        background-color: #f8f9fa;
     }
     
+    /* 統一所有側邊欄按鈕樣式 */
     div[data-testid="stSidebar"] button {
         width: 100% !important;
         text-align: left !important;
-        background-color: var(--background-color); /* 使用系統背景色 */
-        border: 1px solid var(--text-color); /* 邊框跟隨文字顏色 */
-        opacity: 0.8;
-        margin-bottom: 8px;
-        color: var(--text-color);
+        background-color: white;
+        border: 1px solid #E2E8F0;
+        margin-bottom: 8px; /* 統一間距 */
+        color: #2D3748;
         font-weight: bold;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
         transition: all 0.2s;
         display: flex;
         align-items: center;
         justify-content: flex-start;
-        min-height: 45px; /* 最小高度 */
-        height: auto;
-        padding: 10px 15px;
-        border-radius: 8px;
+        height: 48px; /* 統一高度 */
+        padding-left: 15px;
+        font-size: 1rem;
     }
     
     div[data-testid="stSidebar"] button:hover {
-        background-color: var(--primary-background-color);
-        opacity: 1;
+        background-color: #EDF2F7;
+        border-color: #CBD5E0;
+        color: #2B6CB0;
         transform: translateX(3px);
     }
     
-    /* 主功能區標題 */
+    /* 主功能區標題微調 */
     .sidebar-section-header {
         font-size: 1.2rem;
         font-weight: 900;
-        color: var(--text-color);
+        color: #1A202C;
         margin-top: 20px;
         margin-bottom: 10px;
         padding-left: 5px;
-        border-left: 4px solid #FF4B4B; /* Streamlit 紅 */
+        border-left: 4px solid #3182CE;
     }
 
+    /* 選單 Label 加粗 */
     .sidebar-label {
         font-size: 1rem;
         font-weight: 900 !important;
-        color: var(--text-color);
+        color: #1A202C;
         margin-bottom: 5px;
         display: block;
     }
 
-    /* === 3. 目錄式按鈕 (Radio) === */
+    /* 目錄式按鈕 (Radio) */
     div.row-widget.stRadio > div[role="radiogroup"] {
         flex-direction: row;
         flex-wrap: wrap;
-        gap: 8px;
+        gap: 10px;
         align-items: center;
     }
     div.row-widget.stRadio > div[role="radiogroup"] > label {
         background-color: var(--secondary-background-color);
         color: var(--text-color);
-        padding: 8px 12px;
+        padding: 8px 16px;
         border-radius: 6px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
+        border: 1px solid #E2E8F0;
         font-weight: bold;
         cursor: pointer;
         transition: all 0.2s;
-        font-size: 0.9rem;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.1);
     }
     div.row-widget.stRadio > div[role="radiogroup"] > label:hover {
-        border-color: var(--primary-color);
+        border-color: #4A5568;
+        transform: translateY(-2px);
     }
     div.row-widget.stRadio > div[role="radiogroup"] > label[data-checked="true"] {
-        background-color: var(--primary-color) !important;
+        background-color: #2D3748 !important;
         color: white !important;
+        border-color: #1A202C !important;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
     }
 
-    /* === 4. 卡片與清單樣式 (Dark Mode 相容) === */
+    /* 卡片與表格樣式 */
     .topic-container {
-        border: 1px solid rgba(128, 128, 128, 0.2);
+        border: 1px solid #E2E8F0;
         border-radius: 10px;
         margin-bottom: 15px;
-        background-color: var(--secondary-background-color); /* 自動適應 */
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        background-color: var(--secondary-background-color);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
         color: var(--text-color);
     }
     .topic-header {
         background-color: rgba(128,128,128,0.1);
         padding: 10px 15px;
-        border-bottom: 1px solid rgba(128, 128, 128, 0.2);
+        border-bottom: 1px solid #E2E8F0;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        flex-wrap: wrap; /* 手機版允許換行 */
     }
     .record-row {
         padding: 15px;
         border-bottom: 1px solid rgba(128,128,128,0.1);
-        word-wrap: break-word; /* 強制換行，防止破版 */
     }
-    
-    /* AI 精選高亮 - 使用半透明色以適應深淺模式 */
+    /* AI 精選高亮 */
     .highlight-record {
-        background-color: rgba(255, 75, 75, 0.1) !important;
+        background-color: rgba(255, 75, 75, 0.15) !important;
         border-left: 6px solid #ff4b4b !important;
     }
-    
     .badge {
         font-size: 0.8rem;
         padding: 2px 8px;
         border-radius: 4px;
         margin-left: 10px;
-        background: rgba(128, 128, 128, 0.3);
-        white-space: nowrap;
+        background: rgba(128, 128, 128, 0.2);
     }
     
-    /* === 5. 料件清單樣式 (顏色定義) === */
-    .list-container {
-        background-color: var(--secondary-background-color);
-        border-radius: 10px;
-        padding: 5px;
-        border: 1px solid rgba(128, 128, 128, 0.2);
-    }
+    /* 清單項目樣式 (通用) */
     .list-item {
-        padding: 12px 15px;
-        border-bottom: 1px solid rgba(128, 128, 128, 0.1);
+        padding: 10px 15px;
+        border-bottom: 1px solid #eee;
         display: flex;
-        align-items: flex-start; /* 對齊頂部，適合長文字 */
+        align-items: center;
+        background-color: white;
+        transition: background-color 0.2s;
+    }
+    .list-item:hover {
+        background-color: #f7fafc;
     }
     .list-icon {
         font-size: 1.2rem; 
         margin-right: 12px;
-        min-width: 24px;
+        width: 24px;
         text-align: center;
-        margin-top: 2px;
     }
     .list-text {
-        font-size: 1.05rem; 
+        font-size: 1.1rem; 
         font-weight: bold; 
-        word-break: break-word; /* 強制單字換行 */
-        line-height: 1.5;
+        color: #2D3748;
     }
     
-    /* 顏色定義 - 確保在深色/淺色模式都看得到 */
-    /* 淺色模式預設 */
-    .text-red { color: #E53E3E; }
-    .text-green { color: #38A169; }
-    .text-normal { color: var(--text-color); }
-
-    /* 深色模式覆蓋 (使用 CSS 媒體查詢) */
-    @media (prefers-color-scheme: dark) {
-        .text-red { color: #FC8181; } /* 亮紅色 */
-        .text-green { color: #68D391; } /* 亮綠色 */
-    }
+    /* 顏色定義 */
+    .text-red { color: #E53E3E !important; }
+    .text-green { color: #38A169 !important; }
+    .text-normal { color: #2D3748; }
 </style>
 """, unsafe_allow_html=True)
 
 # ---------------------------------------------------------
-# 2. 資料處理
+# 2. 資料處理 (維修、保養、點檢)
 # ---------------------------------------------------------
 HAS_AI = False
 HAS_FUZZY = False
@@ -252,7 +225,7 @@ except ImportError:
 
 REPAIR_COLS = ['設備型號', '大標', '主題(事件簡述)', '原因(異常查找、分析)', '處置、應對', '驗證是否排除(驗證作法)', '備註(建議事項及補充事項)']
 MAINTAIN_COLS = ['保養類型', '型號', '更換料件']
-INSPECT_COLS = ['項目各部', '各部細項']
+INSPECT_COLS = ['項目各部', '各部細項'] # 點檢表欄位
 
 # === 顏色規則 (保養用) ===
 COLOR_RULES = {
@@ -362,6 +335,7 @@ def load_maintain_data():
     except Exception as e:
         return pd.DataFrame(columns=MAINTAIN_COLS)
 
+# === 新增：讀取點檢表 ===
 @st.cache_data(ttl=60)
 def load_inspect_data():
     try:
@@ -374,6 +348,7 @@ def load_inspect_data():
         header = rows[0]
         data = rows[1:]
         df = pd.DataFrame(data, columns=header)
+        # 處理合併儲存格
         df.replace("", float("NaN"), inplace=True)
         df['項目各部'] = df['項目各部'].ffill()
         df.fillna("", inplace=True)
@@ -474,10 +449,11 @@ def super_smart_search(query, df, vectorizer, tfidf_matrix):
     return results, summary_md, external_link
 
 # ---------------------------------------------------------
-# 3. 頁面控制與表單
+# 3. 頁面控制與表單 (改用 View 跳轉)
 # ---------------------------------------------------------
 def set_view(view_name):
     st.session_state['active_view'] = view_name
+    # 離開維修履歷時清除暫存
     if view_name != 'repair_log' and view_name != 'add_edit_repair':
         st.session_state['target_case_id'] = None
 
@@ -501,24 +477,24 @@ def main():
     maintain_intervals = sorted(list(set(df_maintain['保養類型'].astype(str).tolist()))) if not df_maintain.empty else []
     inspect_items = sorted(list(set(df_inspect['項目各部'].astype(str).tolist()))) if not df_inspect.empty else []
 
-    # === 側邊欄設計 (完全垂直排列) ===
+    # === 側邊欄設計 ===
     with st.sidebar:
         st.markdown('<div class="sidebar-section-header">🎛️ 中控台</div>', unsafe_allow_html=True)
         
-        # 統一按鈕樣式
+        # 垂直排列按鈕 (統一寬高)
         if st.button("🧠 AI 智能診斷"): set_view("ai_search")
         if st.button("📊 全域戰情室"): set_view("dashboard")
         
-        # 新增/編輯按鈕
+        # 新增與修改共用同一個 View
         if st.button("➕ 新增/編輯紀錄"):
-            st.session_state['edit_mode'] = False 
+            st.session_state['edit_mode'] = False # 新增模式
             st.session_state['edit_data'] = None
             set_view("add_edit_repair")
             st.rerun()
             
         st.divider()
         
-        # === 1. 設備目錄 ===
+        # === 1. 設備目錄 (下拉選單) ===
         with st.expander("📂 設備維修目錄", expanded=False):
             st.markdown('<span class="sidebar-label">選擇機型查閱履歷</span>', unsafe_allow_html=True)
             selected_model_dd = st.selectbox(
@@ -529,6 +505,7 @@ def main():
                 label_visibility="collapsed"
             )
             if selected_model_dd != "請選擇...":
+                # 按下按鈕後自動跳轉
                 if st.button("🔍 查詢履歷"):
                     st.session_state['selected_model'] = selected_model_dd
                     st.session_state['target_category'] = "全部顯示"
@@ -568,7 +545,7 @@ def main():
                     set_view("maintenance_log")
                     st.rerun()
 
-        # === 3. 點檢目錄 ===
+        # === 3. 點檢目錄 (New!) ===
         with st.expander("📋 點檢基準目錄", expanded=False):
             st.markdown('<span class="sidebar-label">選擇項目各部</span>', unsafe_allow_html=True)
             sel_inspect_item = st.selectbox(
@@ -710,6 +687,7 @@ def main():
                             st.markdown(f"""<div class="record-row {row_class}" style="border-bottom:none; padding-bottom:5px;"><div style="font-weight:bold; color:#ff4b4b; margin-bottom:5px;">{target_icon}</div><div style="display: flex; flex-wrap: wrap; gap: 20px;"><div style="flex: 2; min-width: 300px;"><p><strong style="color:#c53030;">🔴 原因：</strong> {clean_text(row['原因(異常查找、分析)'])}</p><p><strong style="color:#2f855a;">🟢 對策：</strong> {clean_text(row['處置、應對'])}</p></div><div style="flex: 1; min-width: 200px; border-left: 3px solid rgba(128,128,128,0.2); padding-left: 15px; font-size: 0.9em; opacity:0.8;"><p><b>驗證：</b> {row['驗證是否排除(驗證作法)']}</p><p><b>備註：</b> {row['備註(建議事項及補充事項)']}</p></div></div></div>""", unsafe_allow_html=True)
                         with c_edit:
                             st.write(""); st.write("")
+                            # ★ 修改：按下編輯直接跳轉頁面 ★
                             if st.button("✏️", key=f"edit_btn_{row['original_id']}"):
                                 st.session_state['edit_mode'] = True
                                 st.session_state['edit_data'] = row.to_dict()
@@ -718,7 +696,7 @@ def main():
                     st.markdown("<hr style='margin:0; border:0; border-top:1px solid rgba(128,128,128,0.1);'>", unsafe_allow_html=True)
                 st.markdown("</div>", unsafe_allow_html=True)
 
-    # 4. 保養資料 (條列式清單 + 顏色顯示)
+    # 4. 保養資料
     elif st.session_state['active_view'] == "maintenance_log":
         m_interval = st.session_state['selected_maintain_interval']
         m_model = st.session_state['selected_maintain_model']
@@ -729,7 +707,7 @@ def main():
             st.warning("⚠️ 查無此機型的保養料件資料")
         else:
             parts_list = df_m_show['更換料件'].tolist()
-            st.markdown('<div class="list-container">', unsafe_allow_html=True)
+            st.markdown('<div style="background-color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 5px;">', unsafe_allow_html=True)
             for part in parts_list:
                 items = part.split('\n')
                 for item in items:
@@ -753,7 +731,7 @@ def main():
             st.warning("⚠️ 查無資料")
         else:
             details_list = df_i_show['各部細項'].tolist()
-            st.markdown('<div class="list-container">', unsafe_allow_html=True)
+            st.markdown('<div style="background-color: white; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); padding: 5px;">', unsafe_allow_html=True)
             for detail in details_list:
                 lines = str(detail).split('\n')
                 for line in lines:
@@ -771,12 +749,13 @@ def main():
                 set_view("ai_search")
                 st.rerun()
 
-    # 6. 新增/編輯紀錄
+    # 6. 新增/編輯 維修紀錄 (專屬頁面)
     elif st.session_state['active_view'] == "add_edit_repair":
         is_edit = st.session_state['edit_mode']
         form_title = "📝 編輯維修紀錄" if is_edit else "➕ 新增維修紀錄"
         st.markdown(f"<h1>{form_title}</h1>", unsafe_allow_html=True)
         
+        # 準備資料
         existing_models = sorted(list(set(df_repair['設備型號'].astype(str).tolist()))) if not df_repair.empty else []
         existing_cats = sorted(list(set(df_repair['大標'].astype(str).tolist()))) if not df_repair.empty else []
         model_options = existing_models + ["➕ 手動輸入"]
@@ -784,6 +763,7 @@ def main():
         
         default_data = st.session_state['edit_data'] if is_edit else {}
         
+        # 互動式選單 (不在 Form 內)
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("##### 📍 設備型號")
@@ -820,12 +800,14 @@ def main():
             with c1:
                 submitted = st.form_submit_button("💾 儲存紀錄", type="primary", use_container_width=True)
             with c2:
+                # 取消按鈕 (雖然 form 裡面無法直接跳轉，但可以透過 callback 或 rerun 處理，這裡簡單做)
                 cancel = st.form_submit_button("❌ 取消")
             
+            # 刪除按鈕 (只在編輯模式出現)
             delete_check = False
             if is_edit:
                 with c3:
-                    st.write("") 
+                    st.write("") # Spacer
                     delete_check = st.checkbox("🗑️ 刪除此紀錄", key="del_check")
 
             if cancel:
@@ -854,6 +836,7 @@ def main():
                     }
                     
                     with st.spinner("💾 正在儲存到 Google Sheet..."):
+                        # 更新 DataFrame
                         if is_edit:
                             target_idx = default_data['original_id']
                             for key, val in new_record.items(): df_repair.at[target_idx, key] = val
@@ -861,9 +844,11 @@ def main():
                             new_row_df = pd.DataFrame([new_record])
                             df_repair = pd.concat([df_repair, new_row_df], ignore_index=True)
                         
+                        # 寫入雲端
                         if save_repair_data(df_repair):
                             st.success("✅ 儲存成功！")
                             time.sleep(1)
+                            # 儲存後跳轉回列表查看
                             st.session_state['selected_model'] = final_model
                             set_view("repair_log")
                             st.rerun()
