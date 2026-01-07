@@ -9,7 +9,7 @@ import time
 import re
 
 # ---------------------------------------------------------
-# 1. 核心設定 & CSS
+# 1. 核心設定 & CSS (滿版 + 高級清晰風 + 側邊欄按鈕修復)
 # ---------------------------------------------------------
 st.set_page_config(
     page_title="服務報告履歷系統",
@@ -56,11 +56,20 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* 隱藏原生多餘選單 */
+    /* 隱藏原生多餘選單，但保留側邊欄展開按鈕 */
     #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
     footer {visibility: hidden;}
     div[data-testid="stToolbar"] {visibility: hidden;}
+    
+    /* 關鍵修復：隱藏 Header 本體，但強制顯示側邊欄控制按鈕 */
+    header {
+        visibility: hidden;
+    }
+    [data-testid="stSidebarCollapsedControl"] {
+        visibility: visible !important;
+        display: block !important;
+        color: var(--text-color) !important;
+    }
 
     /* === 側邊欄按鈕 === */
     div[data-testid="stSidebar"] button {
@@ -361,7 +370,7 @@ def render_edit_form(df):
                 if (section) { 
                     section.scrollTo({top: 0, behavior: 'smooth'}); 
                 }
-            }, 100); // 延遲100ms確保DOM已加載
+            }, 100); 
         </script>
         """
         components.html(js, height=0)
@@ -417,10 +426,8 @@ def render_edit_form(df):
 
             st.write("")
 
-            # === 2. 靜態資料表單 (防止Enter誤觸，改用 Text Area) ===
+            # === 2. 靜態資料表單 ===
             with st.form("data_entry_form"):
-                # 將所有可能需要打字的欄位都改為 text_area
-                # 這樣按 Enter 變換行，不會送出表單
                 new_topic = st.text_area("📝 主題 (事件簡述 - 必填)", value=default_data.get('主題(事件簡述)', ""), height=68)
                 
                 col_cause, col_sol = st.columns(2)
@@ -611,7 +618,6 @@ def main():
                 
                 st.divider()
                 
-                # 這裡更換了 emoji
                 st.markdown("### 🔥 Top 20 高頻異常原因")
                 top_issues = df_chart['主題(事件簡述)'].value_counts().head(20).reset_index()
                 top_issues.columns = ['主題', '次數']
